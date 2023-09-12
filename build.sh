@@ -1,5 +1,5 @@
 #!/bin/bash -e
-
+cd $(dirname $0)
 mkdir -p build
 
 LUA_SRC=$(ls ./lua/*.c | grep -v "luac.c" | grep -v "lua.c" | tr "\n" " ")
@@ -12,21 +12,29 @@ else
     extension="$extension -O3 --closure 1"
 fi
 
-sed -i "s/^#define LUA_32BITS\t0$/#define LUA_32BITS\t1/" ./lua/luaconf.h
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^#define LUA_32BITS\t0$/#define LUA_32BITS\t1/" ./lua/luaconf.h
+else
+    sed -i "s/^#define LUA_32BITS\t0$/#define LUA_32BITS\t1/" ./lua/luaconf.h
+fi
 
 emcc \
     -s WASM=1 $extension -o ./build/glue.js \
     -s EXPORTED_RUNTIME_METHODS="[
-        'cwrap', \
+        'ccall', \
         'addFunction', \
         'removeFunction', \
         'FS', \
         'ENV', \
         'getValue', \
-        'setValue'
+        'setValue', \
+        'lengthBytesUTF8', \
+        'stringToUTF8', \
+        'stringToNewUTF8'
     ]" \
+    -s STRICT_JS=0 \
     -s MODULARIZE=1 \
-    -s ALLOW_TABLE_GROWTH \
+    -s ALLOW_TABLE_GROWTH=1 \
     -s EXPORT_NAME="initWasmModule" \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s STRICT=1 \
@@ -34,6 +42,7 @@ emcc \
     -s NODEJS_CATCH_EXIT=0 \
 	-s NODEJS_CATCH_REJECTION=0 \
     -s MALLOC=emmalloc \
+    -s STACK_SIZE=1MB \
     -s EXPORTED_FUNCTIONS="[
         '_malloc', \
         '_free', \
@@ -189,4 +198,8 @@ emcc \
     ]" \
     ${LUA_SRC}
 
-sed -i "s/^#define LUA_32BITS\t1$/#define LUA_32BITS\t0/" ./lua/luaconf.h
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^#define LUA_32BITS\t1$/#define LUA_32BITS\t0/" ./lua/luaconf.h
+else
+    sed -i "s/^#define LUA_32BITS\t1$/#define LUA_32BITS\t0/" ./lua/luaconf.h
+fi

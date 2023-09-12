@@ -53,7 +53,15 @@ export default class Thread {
     }
 
     public loadString(luaCode: string, name?: string): void {
-        this.assertOk(this.lua.luaL_loadbufferx(this.address, luaCode, luaCode.length, name || luaCode, null))
+        const size = this.lua.module.lengthBytesUTF8(luaCode)
+        const pointerSize = size + 1
+        const bufferPointer = this.lua.module._malloc(pointerSize)
+        try {
+            this.lua.module.stringToUTF8(luaCode, bufferPointer, pointerSize)
+            this.assertOk(this.lua.luaL_loadbufferx(this.address, bufferPointer, size, name ?? bufferPointer, null))
+        } finally {
+            this.lua.module._free(bufferPointer)
+        }
     }
 
     public loadFile(filename: string): void {
@@ -137,8 +145,9 @@ export default class Thread {
     }
 
     public runSync(argCount = 0): MultiReturn {
+        const base = this.getTop() - argCount - 1 // The 1 is for the function to run
         this.assertOk(this.lua.lua_pcallk(this.address, argCount, LUA_MULTRET, 0, 0, null) as LuaReturn)
-        return this.getStackValues()
+        return this.getStackValues(base)
     }
 
     public pop(count = 1): void {
@@ -155,16 +164,17 @@ export default class Thread {
             this.pushValue(arg)
         }
 
+        const base = this.getTop() - args.length - 1 // The 1 is for the function to run
         this.lua.lua_callk(this.address, args.length, LUA_MULTRET, 0, null)
-        return this.getStackValues()
+        return this.getStackValues(base)
     }
 
-    public getStackValues(): MultiReturn {
-        const returns = this.getTop()
+    public getStackValues(start = 0): MultiReturn {
+        const returns = this.getTop() - start
         const returnValues = new MultiReturn(returns)
 
         for (let i = 0; i < returns; i++) {
-            returnValues[i] = this.getValue(i + 1)
+            returnValues[i] = this.getValue(start + i + 1)
         }
 
         return returnValues
@@ -317,7 +327,8 @@ export default class Thread {
 
             this.lua.lua_sethook(this.address, this.hookFunctionPointer, LuaEventMasks.Count, INSTRUCTION_HOOK_COUNT)
             this.timeout = timeout
-        } else {
+        } else if (this.hookFunctionPointer) {
+            this.hookFunctionPointer = undefined
             this.timeout = undefined
             this.lua.lua_sethook(this.address, null, 0, 0)
         }

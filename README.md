@@ -80,11 +80,11 @@ Wasmoon compiles the [official Lua code](https://github.com/lua/lua) to webassem
 
 Because of wasm, wasmoon will run Lua code much faster than fengari, but if you are going to interop a lot between JS and Lua, this may be not be true anymore, you probably should test on you specific use case to take the prove.
 
-This is the results running a [heap sort code](https://github.com/ceifa/wasmoon/blob/main/bench/heapsort.lua) in a list of 20k numbers 10x(less is better):
+This is the results running a [heap sort code](https://github.com/ceifa/wasmoon/blob/main/bench/heapsort.lua) in a list of 2k numbers 10x(less is better):
 
-| wasmoon | fengari |
-| ------- | ------- |
-| 0.177ms | 2.107ms |
+| wasmoon  | fengari   |
+| -------- | --------- |
+| 15.267ms | 389.923ms |
 
 ### Size
 
@@ -114,6 +114,7 @@ module.exports = {
             child_process: false,
             crypto: false,
             url: false,
+            module: false
         },
     },
 }
@@ -126,7 +127,7 @@ With the package [rollup-plugin-ignore](https://www.npmjs.com/package/rollup-plu
 ```js
 export default {
     input: 'src/index.js', // Here is your entry file,
-    plugins: [ignore(['path', 'fs', 'child_process', 'crypto', 'url'])],
+    plugins: [ignore(['path', 'fs', 'child_process', 'crypto', 'url', 'module'])],
 }
 ```
 
@@ -142,7 +143,41 @@ Add the section browser on `package.json`:
         "fs": false,
         "path": false,
         "crypto": false,
-        "url": false
+        "url": false,
+        "module": false
     }
 }
+```
+
+## How to build
+
+Firstly download the lua submodule and install the other Node.JS dependencies:
+
+```sh
+git submodule update --init # download lua submodule
+npm i # install dependencies
+```
+
+### Windows / Linux / MacOS (Docker way)
+
+You need to install [docker](https://www.docker.com/) and ensure it is on your `PATH`.
+
+After cloned the repo, to build you just have to run these:
+
+```sh
+npm run build:wasm:docker:dev # build lua
+npm run build # build the js code/bridge
+npm test # ensure everything it's working fine
+```
+
+### Ubuntu / Debian / MacOS
+
+You need to install [emscripten](https://emscripten.org/) and ensure it is on your `PATH`.
+
+After cloned the repo, to build you just have to run these:
+
+```sh
+npm run build:wasm:dev # build lua
+npm run build # build the js code/bridge
+npm test # ensure everything it's working fine
 ```
